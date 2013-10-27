@@ -1,0 +1,18 @@
+# Mac
+.DS_Store
+
+# eclipse
+.classpath
+.project
+.settings
+
+# gradle
+.gradle
+build
+
+# intellij
+out
+.idea
+*.iml
+
+

@@ -1,0 +1,22 @@
+#!/bin/bash
+
+set -e
+set -u
+
+control_dir="$(dirname $0)"
+. "$control_dir/functions/functions"
+. "$control_dir/config"
+
+export JAVA_HOME=$JAVA_HOME
+export PATH=$JAVA_HOME/bin:$PATH
+
+java_opts="$(java_opts $control_dir)"
+
+exec bash -c "
+$java \
+  $java_opts \
+  -jar \"$JBOSS_HOME/jboss-modules.jar\" \
+  -mp \"${JBOSS_MODULEPATH}\" \
+  org.jboss.as.standalone
+  start
+"
