@@ -1,6 +1,7 @@
 package com.cloudbees.clickstack.wildfly;
 
 import com.cloudbees.clickstack.domain.metadata.*;
+import com.cloudbees.clickstack.util.Strings2;
 import com.cloudbees.clickstack.util.XmlUtils;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -42,7 +43,7 @@ public class SetupJbossConfigurationFiles {
 
     protected SetupJbossConfigurationFiles addDatabase(Database database, Document standaloneXmlDocument) {
         if (!jdbcDriverFileNameByDriverName.containsKey(database.getDriver())) {
-            logger.info("Driver {} not loaded, skip datasource declaration for {}", database.getDriver(), database.getName());
+            logger.warn("Driver {} not loaded, skip datasource declaration for {}", database.getDriver(), database.getName());
             return this;
         }
         logger.info("Add DataSource name={}, url={}", database.getName(), database.getUrl());
@@ -57,6 +58,10 @@ public class SetupJbossConfigurationFiles {
         e.setAttribute("jta", "false");
 
         appendChildElement(e, "connection-url", "jdbc:" + database.getUrl());
+
+        // without this "use my_database" command, we get a strange exception "no default database selected"
+        appendChildElement(e, "new-connection-sql", "use " + database.getDatabaseName());
+
         String connectionProperty = database.getProperty("connection-property", "");
         if (!Strings.isNullOrEmpty(connectionProperty)) {
             appendChildElement(e, "connection-property", connectionProperty);
@@ -68,6 +73,7 @@ public class SetupJbossConfigurationFiles {
 
         appendChildElement(e, "driver-class", database.getJavaDriver());
         appendChildElement(e, "datasource-class", database.getDataSourceClassName());
+
 
         Element security = standaloneXmlDocument.createElement("security");
         e.appendChild(security);
@@ -109,72 +115,6 @@ public class SetupJbossConfigurationFiles {
         return this;
     }
 
-    protected SetupJbossConfigurationFiles addRemoteAddrValve(Metadata metadata, Document serverXmlDocument, Document contextXmlDocument) {
-        String section = "remoteAddress";
-
-        RuntimeProperty runtimeProperty = metadata.getRuntimeProperty(section);
-        if (runtimeProperty == null) {
-            return this;
-        }
-        logger.info("Add RemoteAddrValve");
-
-        Set<String> privateAppProperties = new HashSet<>(Arrays.asList(
-                "className", "allow", "deny", "denyStatus"));
-
-        Element remoteAddrValve = serverXmlDocument.createElement("Valve");
-
-        remoteAddrValve.setAttribute("className", "org.apache.wildfly.valves.RemoteAddrValve");
-
-
-        for (Map.Entry<String, String> entry : runtimeProperty.entrySet()) {
-            if (privateAppProperties.contains(entry.getKey())) {
-                remoteAddrValve.setAttribute(entry.getKey(), entry.getValue());
-            } else {
-                logger.debug("remoteAddrValve: ignore unknown property '" + entry.getKey() + "'");
-            }
-        }
-
-        Element remoteIpValve = XmlUtils.getUniqueElement(serverXmlDocument, "//Valve[@className='org.apache.wildfly.valves.RemoteIpValve']");
-        XmlUtils.insertSiblingAfter(remoteAddrValve, remoteIpValve);
-        return this;
-    }
-
-    protected SetupJbossConfigurationFiles addPrivateAppValve(Metadata metadata, Document serverXmlDocument, Document contextXmlDocument) {
-        String section = "privateApp";
-
-        RuntimeProperty runtimeProperty = metadata.getRuntimeProperty(section);
-        if (runtimeProperty == null) {
-            return this;
-        }
-        logger.info("Add PrivateAppValve");
-
-        Set<String> privateAppProperties = new HashSet<>(Arrays.asList(
-                "className", "secretKey",
-                "authenticationEntryPointName",
-                "authenticationParameterName", "authenticationHeaderName", "authenticationUri", "authenticationCookieName",
-                "enabled", "realmName", "ignoredUriRegexp"));
-
-        Element privateAppValve = serverXmlDocument.createElement("Valve");
-
-        privateAppValve.setAttribute("className", "com.cloudbees.wildfly.valves.PrivateAppValve");
-
-        for (Map.Entry<String, String> entry : runtimeProperty.entrySet()) {
-            if (privateAppProperties.contains(entry.getKey())) {
-                privateAppValve.setAttribute(entry.getKey(), entry.getValue());
-            } else {
-                logger.debug("privateAppValve: ignore unknown property '" + entry.getKey() + "'");
-            }
-        }
-        if (privateAppValve.getAttribute("secretKey").isEmpty()) {
-            throw new IllegalStateException("Invalid '" + section +
-                    "' configuration, '" + section + "." + "secretKey' is missing");
-        }
-
-        Element remoteIpValve = XmlUtils.getUniqueElement(serverXmlDocument, "//Valve[@className='org.apache.wildfly.valves.RemoteIpValve']");
-        XmlUtils.insertSiblingAfter(privateAppValve, remoteIpValve);
-        return this;
-    }
-
     protected void buildJbossConfiguration(Metadata metadata, Document standaloneXml) throws ParserConfigurationException {
 
         String message = "File generated by wildfly-clickstack at " + new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ").format(new Date());
@@ -190,7 +130,6 @@ public class SetupJbossConfigurationFiles {
                 addSessionStore((SessionStore) resource, standaloneXml);
             }
         }
-
     }
 
     public void buildWildflyConfigurationFiles(Path jbossBaseDir) throws Exception {

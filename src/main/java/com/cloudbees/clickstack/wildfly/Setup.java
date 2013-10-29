@@ -17,7 +17,6 @@ package com.cloudbees.clickstack.wildfly;
 
 import com.cloudbees.clickstack.domain.environment.Environment;
 import com.cloudbees.clickstack.domain.metadata.Database;
-import com.cloudbees.clickstack.domain.metadata.Email;
 import com.cloudbees.clickstack.domain.metadata.Metadata;
 import com.cloudbees.clickstack.domain.metadata.SessionStore;
 import com.cloudbees.clickstack.plugin.java.JavaPlugin;
@@ -49,6 +48,9 @@ import java.util.Map;
 public class Setup {
 
     protected final Logger logger = LoggerFactory.getLogger(getClass());
+    /**
+     * Root dir of the genapp install
+     */
     @Nonnull
     final Path appDir;
     @Nonnull
@@ -163,6 +165,7 @@ public class Setup {
         installJbossBase();
         installApplication();
 
+        installJbossLogManager();
         installCloudBeesJavaAgent();
         installJmxTransAgent();
         writeJavaOpts();
@@ -188,7 +191,7 @@ public class Setup {
         logger.warn("should we prefix the value of '-Dlogging.configuration' by 'file:' ");
         String opts = "" +
                 "-D[Standalone] " +
-                "-Djboss.modules.system.pkgs=org.jboss.byteman " +
+              /*  "-Djboss.modules.system.pkgs=org.jboss.byteman " + */
                 "-Djava.awt.headless=true " +
                 "-Djava.io.tmpdir=\"" + tmpDir + "\" " +
                 "-Djboss.home.dir=\"" + jbossHome + "\" " +
@@ -251,12 +254,6 @@ public class Setup {
             Files2.copyDirectoryContent(clickstackDir.resolve("deps/wildfly-lib-postgresql"), targetLibDir);
         }
 
-        // Mail
-        if (!metadata.getResources(Email.class).isEmpty()) {
-            logger.debug("Add mail jars");
-            Files2.copyDirectoryContent(clickstackDir.resolve("deps/wildfly-lib-mail"), targetLibDir);
-        }
-
         // Memcache
         if (!metadata.getResources(SessionStore.class).isEmpty()) {
             logger.debug("Add memcache jars");
@@ -271,7 +268,10 @@ public class Setup {
         Path deploymentsDir = jbossBaseDir.resolve("deployments");
         Files.copy(warFile, deploymentsDir.resolve("ROOT.war"));
 
-        // TODO support extraction of standalone.xml
+        Path overwrittenStandaloneXml = Files2.unzipSubFileIfExists(warFile, "META-INF/standalone.xml", jbossBaseDir.resolve("configuration"));
+        if (overwrittenStandaloneXml != null) {
+            logger.info("standalone.xml overwritten by application provided version");
+        }
 
         ApplicationUtils.extractApplicationExtraFiles(warFile, appDir);
         ApplicationUtils.extractContainerExtraLibs(warFile, deploymentsDir);
@@ -285,14 +285,33 @@ public class Setup {
         Preconditions.checkState(Files.exists(jmxtransAgentConfigurationFile), "File %s does not exist", jmxtransAgentConfigurationFile);
         Path jmxtransAgentDataFile = logDir.resolve("wildfly-metrics.data");
 
-        logger.warn("JMX TRANS AGENT IS DISABLED");
-        Path agentOptsFile = controlDir.resolve("disabled-java-opts-60-jmxtrans-agent");
+        Path agentOptsFile = controlDir.resolve("java-opts-60-jmxtrans-agent");
 
         String agentOptsFileData =
                 "-javaagent:" + jmxtransAgentJarFile.toString() + "=" + jmxtransAgentConfigurationFile.toString() +
                         " -Dwildfly_metrics_data_file=" + jmxtransAgentDataFile.toString();
 
         Files.write(agentOptsFile, Collections.singleton(agentOptsFileData), Charsets.UTF_8);
+    }
+
+    /**
+     * https://issues.jboss.org/browse/WFLY-895
+     * See http://danielpocock.com/monitoring-jboss-tomcat-and-application-servers-with-jmxetric
+     *
+     * @throws IOException
+     */
+    public void installJbossLogManager() throws IOException {
+
+        Path optsFile = controlDir.resolve("java-opts-05-jboss-log-manager");
+        logger.debug("installJbossLogManager() {}", optsFile);
+
+        Path jbossLogManagerFile = Files2.findArtifact(jbossHome.resolve("modules/system/layers/base/org/jboss/logmanager/main/"), "jboss-logmanager");
+
+        String opts = "" +
+                "-Xbootclasspath/p:" + jbossLogManagerFile + " " +
+                "-Djava.util.logging.manager=org.jboss.logmanager.LogManager " +
+                "-Djboss.modules.system.pkgs=\"org.jboss.logmanager\" ";
+        Files.write(optsFile, Collections.singleton(opts), Charsets.UTF_8);
     }
 
     public void installCloudBeesJavaAgent() throws IOException {
