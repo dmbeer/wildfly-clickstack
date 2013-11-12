@@ -56,8 +56,7 @@ public class SetupJbossConfigurationFiles {
 
         appendChildElement(e, "connection-url", "jdbc:" + database.getUrl());
 
-        // without this "use my_database" command, we get a strange exception "no default database selected"
-        appendChildElement(e, "new-connection-sql", "use " + database.getDatabaseName());
+        // don't declare 'datasource-class' configuration parameter, otherwise, <connection-url> is ignored
 
         String connectionProperty = database.getProperty("connection-property", "");
         if (!Strings.isNullOrEmpty(connectionProperty)) {
@@ -69,7 +68,6 @@ public class SetupJbossConfigurationFiles {
         appendChildElement(e, "driver", jdbcDriverName);
 
         appendChildElement(e, "driver-class", database.getJavaDriver());
-        appendChildElement(e, "datasource-class", database.getDataSourceClassName());
 
 
         Element security = standaloneXmlDocument.createElement("security");
