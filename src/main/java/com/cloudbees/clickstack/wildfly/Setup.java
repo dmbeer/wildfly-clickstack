@@ -199,7 +199,8 @@ public class Setup {
                 "-Dapp_extra_files=\"" + appExtraFilesDir + "\" " +
                 "-Dorg.jboss.boot.log.file=" + jbossBaseDir + "/log/server.log " +
                 "-Dlogging.configuration=\"file:" + jbossBaseDir + "/configuration/logging.properties\" " +
-                "-Djboss.http.port=" + env.appPort;
+                "-Djboss.http.port=" + env.appPort + " " +
+                "-Djboss.bind.address=\"0.0.0.0\" ";
 
         Files.write(optsFile, Collections.singleton(opts), Charsets.UTF_8);
     }
