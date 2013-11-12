@@ -6,21 +6,23 @@ set -u
 control_dir="$(dirname $0)"
 . "$control_dir/config"
 
-echo -e "\n##### BEGIN TOMCAT INFO #####"
+echo -e "\n##### BEGIN WILFLY INFO #####"
 _dir=$(pwd)
 cd "$app_dir/.genapp/setup_status"
     for _file in *; do
         echo -e "\n----- Setup status for $_file is: -----" 
         cat "$_file"
     done
-cd "$_dir"
-echo -e "\n----- Context.xml file is: -----"
-cat "$app_dir/wildfly-base/conf/context.xml"
+
+echo -e "\n----- standalone.xml file is: -----"
+cat "$JBOSS_BASE_DIR/configuration/standalone.xml"
+echo -e "\n----- logging.properties file is: -----"
+cat "$JBOSS_BASE_DIR/configuration/logging.properties"
 echo -e "\n----- Env file is: -----"
 cat "$control_dir/env"
 echo -e "\n----- Config file is: -----"
 cat "$control_dir/config"
 echo -e "\n----- Metadata file is: -----"
 cat "$app_dir/.genapp/metadata.json"
-echo -e "\n##### END TOMCAT INFO #####"
+echo -e "\n##### END WILFLY INFO #####"
 
