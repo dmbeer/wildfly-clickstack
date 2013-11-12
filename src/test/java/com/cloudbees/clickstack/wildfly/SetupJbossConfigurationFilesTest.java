@@ -35,6 +35,12 @@ import static org.xmlmatchers.XmlMatchers.isEquivalentTo;
 import static org.xmlmatchers.transform.XmlConverters.the;
 
 /**
+ * Disable test with {@code @Ignore} because the tests fail in gradle build due to:
+ * <pre><code>
+ * Caused by: java.lang.RuntimeException: More or less (0) than 1 node found for expression: //datasource[@pool-name='mydb']
+ * at com.cloudbees.clickstack.util.XmlUtils.getUniqueElement(XmlUtils.java:103)
+ * ... 45 more
+ * </code></pre>
  * @author <a href="mailto:cleclerc@cloudbees.com">Cyrille Le Clerc</a>
  */
 @Ignore
@@ -79,6 +85,7 @@ public class SetupJbossConfigurationFilesTest {
                 "<?xml version='1.0'?>\n" +
                 "<datasource enabled='true' jndi-name='java:jboss/datasources/mydb' jta='false' pool-name='mydb' use-java-context='true'>\n" +
                 "	<connection-url>jdbc:mysql://mysql.mycompany.com:3306/test</connection-url>\n" +
+                "	<new-connection-sql>use test</new-connection-sql>\n" +
                 "	<driver>mysql-connector-java-5.1.25.jar</driver>\n" +
                 "	<driver-class>com.mysql.jdbc.Driver</driver-class>\n" +
                 "	<datasource-class>com.mysql.jdbc.jdbc2.optional.MysqlDataSource</datasource-class>\n" +
@@ -99,4 +106,50 @@ public class SetupJbossConfigurationFilesTest {
         assertThat(the(dataSource), isEquivalentTo(the(xml)));
     }
 
+    @Test
+    public void add_jdbc_authentication_realm() throws Exception {
+        // prepare
+        String json = "{ \n" +
+                "    'cb-db': { \n" +
+                "        'DATABASE_PASSWORD': 'test', \n" +
+                "        'DATABASE_URL': 'mysql://mysql.mycompany.com:3306/test', \n" +
+                "        'DATABASE_USERNAME': 'test', \n" +
+                "        '__resource_name__': 'mydb', \n" +
+                "        '__resource_type__': 'database' \n" +
+                "    },\n" +
+                "    'jboss': { \n" +
+                "        'auth-realm.database': 'mydb' \n" +
+                "    }\n" +
+                "}";
+        Metadata metadata = Metadata.Builder.fromJsonString(json, true);
+        Map<String, String> jdbcDriverFileNameByDriverName = new HashMap<>();
+        jdbcDriverFileNameByDriverName.put(Database.DRIVER_MYSQL, "mysql-connector-java-5.1.25.jar");
+        SetupJbossConfigurationFiles setupJbossConfigurationFiles = new SetupJbossConfigurationFiles(metadata, jdbcDriverFileNameByDriverName);
+
+        Database database = metadata.getResource("mydb");
+
+        // run
+        setupJbossConfigurationFiles.addAuthenticationRealm(metadata, standaloneXml);
+
+        // XmlUtils.flush(standaloneXml, System.out);
+
+        // verify
+        Element securityDomain = XmlUtils.getUniqueElement(standaloneXml, "//security-domain[@name='jdbc-security-domain']");
+
+        String xml = "" +
+                "<security-domain cache-type='default' name='jdbc-security-domain'>\n" +
+                "    <authentication>\n" +
+                "        <login-module code='Database' flag='required'>\n" +
+                "            <module-option name='dsJndiName' value='java:jboss/datasources/mydb'/>\n" +
+                "            <module-option name='principalsQuery' value='select `password` from `cb_users` where `username` = ?'/>\n" +
+                "            <module-option name='rolesQuery' value=\"select `groupname`, 'Roles' from `cb_groups` where `username` = ?\"/>\n" +
+                "            <module-option name='hashAlgorithm' value='MD5'/>\n" +
+                "            <module-option name='hashEncoding' value='base64'/>\n" +
+                "            <module-option name='unauthenticatedIdentity' value='guest'/>\n" +
+                "        </login-module>\n" +
+                "    </authentication>\n" +
+                "</security-domain>\n";
+        assertThat(the(securityDomain), isEquivalentTo(the(xml)));
+
+    }
 }
