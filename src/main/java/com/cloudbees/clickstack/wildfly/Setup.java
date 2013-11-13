@@ -188,10 +188,8 @@ public class Setup {
         Path optsFile = controlDir.resolve("java-opts-20-wildfly-opts");
         logger.debug("installWildflyJavaOpts() {}", optsFile);
 
-        logger.warn("should we prefix the value of '-Dlogging.configuration' by 'file:' ");
         String opts = "" +
                 "-D[Standalone] " +
-              /*  "-Djboss.modules.system.pkgs=org.jboss.byteman " + */
                 "-Djava.awt.headless=true " +
                 "-Djava.io.tmpdir=\"" + tmpDir + "\" " +
                 "-Djboss.home.dir=\"" + jbossHome + "\" " +
