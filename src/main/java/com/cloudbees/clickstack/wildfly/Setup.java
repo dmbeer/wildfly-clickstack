@@ -62,7 +62,7 @@ public class Setup {
     @Nonnull
     final Path javaHome;
     @Nonnull
-    final Path warFile;
+    final Path warOrEarFile;
     @Nonnull
     final Path logDir;
     @Nonnull
@@ -114,9 +114,14 @@ public class Setup {
         this.clickstackDir = env.clickstackDir;
         Preconditions.checkState(Files.exists(clickstackDir) && Files.isDirectory(clickstackDir));
 
-        this.warFile = env.packageDir.resolve("app.war");
-        Preconditions.checkState(Files.exists(warFile), "File not found %s", warFile);
-        Preconditions.checkState(!Files.isDirectory(warFile), "Expected to be a file and not a directory %s", warFile);
+        if (Files.exists(env.packageDir.resolve("app.war"))) {
+            this.warOrEarFile = env.packageDir.resolve("app.war");
+        } else if (Files.exists(env.packageDir.resolve("app.ear"))) {
+            this.warOrEarFile = env.packageDir.resolve("app.ear");
+        } else {
+            throw new IllegalArgumentException("No app.War or app.ear found in " + env.packageDir);
+        }
+        Preconditions.checkState(!Files.isDirectory(warOrEarFile), "Expected to be a file and not a directory %s", warOrEarFile);
 
         this.appExtraFilesDir = Files.createDirectories(appDir.resolve("app-extra-files"));
         Files2.chmodAddReadWrite(appExtraFilesDir);
@@ -126,7 +131,7 @@ public class Setup {
         this.javaHome = Preconditions.checkNotNull(javaHome, "javaHome");
         Preconditions.checkArgument(Files.exists(javaHome), "JavaHome does not exist %s", javaHome);
 
-        logger.debug("warFile: {}", warFile.toAbsolutePath());
+        logger.debug("warOrEarFile: {}", warOrEarFile.toAbsolutePath());
         logger.debug("agentLibDir: {}", agentLibDir.toAbsolutePath());
         logger.debug("appExtraFilesDir: {}", appExtraFilesDir.toAbsolutePath());
     }
@@ -265,15 +270,19 @@ public class Setup {
     public void installApplication() throws IOException {
 
         Path deploymentsDir = jbossBaseDir.resolve("deployments");
-        Files.copy(warFile, deploymentsDir.resolve("ROOT.war"));
+        if (warOrEarFile.endsWith("app.war")) {
+            Files.copy(warOrEarFile, deploymentsDir.resolve("ROOT.war"));
+        } else {
+            Files2.copyToDirectory(warOrEarFile, deploymentsDir);
+        }
 
-        Path overwrittenStandaloneXml = Files2.unzipSubFileIfExists(warFile, "META-INF/standalone.xml", jbossBaseDir.resolve("configuration"));
+        Path overwrittenStandaloneXml = Files2.unzipSubFileIfExists(warOrEarFile, "META-INF/standalone.xml", jbossBaseDir.resolve("configuration"));
         if (overwrittenStandaloneXml != null) {
             logger.info("standalone.xml overwritten by application provided version");
         }
 
-        ApplicationUtils.extractApplicationExtraFiles(warFile, appDir);
-        ApplicationUtils.extractContainerExtraLibs(warFile, deploymentsDir);
+        ApplicationUtils.extractApplicationExtraFiles(warOrEarFile, appDir);
+        ApplicationUtils.extractContainerExtraLibs(warOrEarFile, deploymentsDir);
     }
 
     public void installJmxTransAgent() throws IOException {
