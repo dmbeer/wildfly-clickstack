@@ -103,10 +103,12 @@ buildscript {
 repositories {
     mavenCentral()
     maven {
+        // JBoss repo ()
+        url "https://repository.jboss.org/nexus/content/repositories/releases/"
+    }
+    maven {
         // as documented on https://code.google.com/p/spymemcached/wiki/Maven
         url "http://files.couchbase.com/maven2/"
-        // wildfly nightly builds
-        url "http://repository-community.forge.cloudbees.com/release/"
     }
     mavenLocal()
 }
