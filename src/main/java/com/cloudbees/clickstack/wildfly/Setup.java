@@ -210,7 +210,7 @@ public class Setup {
 
     public void installJBossHome() throws Exception {
 
-        Path wildflyPackagePath = Files2.findArtifact(clickstackDir, "wildfly-dist", "zip");
+        Path wildflyPackagePath = Files2.findArtifact(clickstackDir, "wildfly-8.0.1.Final-SNAPSHOT", "zip");
         Files2.unzip(wildflyPackagePath, appDir);
         jbossHome = Files2.findUniqueDirectoryBeginningWith(appDir, "wildfly");
         logger.debug("jbossHome: {}", jbossHome);
